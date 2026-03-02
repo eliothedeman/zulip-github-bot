@@ -1,9 +1,10 @@
 # Zulip GitHub Issue Bot
 
-A Zulip bot that creates GitHub issues directly from chat messages. Two deployment modes:
+A Zulip bot that creates GitHub issues directly from chat messages. Three deployment modes:
 
-- **Webhook** (Cloud Run, Fly.io, Railway, etc.) — Zulip sends outgoing-webhook POSTs to your server
-- **Self-hosted** — long-running process using the [`zulip_bots`](https://github.com/zulip/python-zulip-api) framework
+- **Cloudflare Workers** — zero-config edge deployment (TypeScript)
+- **Docker / Cloud Run / Fly.io** — containerized Python webhook server
+- **Self-hosted** — long-running process using [`zulip_bots`](https://github.com/zulip/python-zulip-api)
 
 ## Usage
 
@@ -22,22 +23,46 @@ Multi-line messages use the first line as the title and everything after as the 
 
 ---
 
-## Deploy to the cloud (webhook mode)
+## Zulip setup (all modes)
 
-This is the recommended path. Zulip sends HTTP requests to your server whenever the bot is mentioned.
+1. In your Zulip organization: **Settings → Your bots → Add a new bot**
+2. Choose **Outgoing webhook** (for cloud deploys) or **Generic bot** (for self-hosted)
+3. For outgoing webhooks, set the endpoint URL to `https://<your-domain>/webhook` and note the **webhook token**
+4. Create a [GitHub personal access token](https://github.com/settings/tokens) with `repo` scope
 
-### 1. Create a Zulip outgoing-webhook bot
+---
 
-In your Zulip organization: **Settings → Your bots → Add a new bot**.
-Choose **Outgoing webhook**, set the endpoint URL to `https://<your-domain>/webhook`, and note the **webhook token** shown.
+## Deploy to Cloudflare Workers
 
-### 2. Create a GitHub token
+The fastest path — no containers, no servers. The Worker lives in `worker/`.
 
-Create a [personal access token](https://github.com/settings/tokens) with `repo` scope.
+```bash
+cd worker
+npm install
 
-### 3. Deploy
+# Set your repo in wrangler.toml [vars]:
+#   DEFAULT_REPO = "myorg/myrepo"
+#   ALLOWED_REPOS = "myorg/myrepo,myorg/frontend"  # optional
 
-#### GCP Cloud Run (one command)
+# Store secrets:
+npx wrangler secret put GITHUB_TOKEN
+npx wrangler secret put ZULIP_WEBHOOK_TOKEN   # optional
+
+# Deploy:
+npm run deploy
+```
+
+Wrangler will print the Worker URL. Set `<worker-url>/webhook` as the endpoint in your Zulip outgoing-webhook bot.
+
+To develop locally: `npm run dev`, then POST to `http://localhost:8787/webhook`.
+
+---
+
+## Deploy with Docker / Cloud Run / Fly.io
+
+A Python Flask webhook server with a Dockerfile. Zulip sends HTTP requests to your server whenever the bot is mentioned.
+
+### GCP Cloud Run (one command)
 
 ```bash
 # From the repo root:
@@ -49,9 +74,9 @@ gcloud run deploy zulip-github-bot \
 ```
 
 Cloud Run will build the Dockerfile, push the image, and give you a URL.
-Set that URL + `/webhook` as the endpoint in Zulip.
+Set that URL + `/webhook` as the endpoint in your Zulip outgoing-webhook bot.
 
-#### Fly.io
+### Fly.io
 
 ```bash
 fly launch --no-deploy
@@ -59,7 +84,7 @@ fly secrets set GITHUB_TOKEN=ghp_... DEFAULT_REPO=myorg/myrepo ZULIP_WEBHOOK_TOK
 fly deploy
 ```
 
-#### Docker (anywhere)
+### Docker (anywhere)
 
 ```bash
 docker build -t zulip-github-bot .
@@ -70,7 +95,7 @@ docker run -p 8080:8080 \
     zulip-github-bot
 ```
 
-### Environment variables (webhook mode)
+### Environment variables (Docker / Cloud Run / Fly.io)
 
 | Variable | Required | Description |
 |---|---|---|

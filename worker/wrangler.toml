@@ -1,0 +1,14 @@
+name = "zulip-github-bot"
+main = "src/worker.ts"
+compatibility_date = "2025-03-01"
+
+# Set these with: wrangler secret put GITHUB_TOKEN
+# Secrets (never committed):
+#   GITHUB_TOKEN          - GitHub personal access token
+#   ZULIP_WEBHOOK_TOKEN   - (optional) token from the Zulip outgoing-webhook bot
+
+# Plain-text env vars (edit here or override per-environment):
+[vars]
+DEFAULT_REPO = "myorg/myrepo"
+# Comma-separated allowlist. Leave empty to allow any repo the token can access.
+ALLOWED_REPOS = ""
